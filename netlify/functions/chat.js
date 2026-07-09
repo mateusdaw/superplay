@@ -334,7 +334,10 @@ exports.handler = async function (event) {
     console.log('🤖 stop_reason:', response.stop_reason);
 
     // Enquanto a IA quiser usar uma ferramenta, executamos e devolvemos o resultado pra ela
-    while (response.stop_reason === 'tool_use') {
+    // Limite de 8 iterações para evitar loop infinito em caso de erro contínuo
+    let toolLoopCount = 0;
+    while (response.stop_reason === 'tool_use' && toolLoopCount < 8) {
+      toolLoopCount++;
       const toolUseBlock = response.content.find((b) => b.type === 'tool_use');
       console.log('🔧 IA chamou a ferramenta:', toolUseBlock.name, JSON.stringify(toolUseBlock.input));
       let toolResult;
@@ -392,7 +395,7 @@ async function callClaude(messages) {
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 4096,
       system: SYSTEM_PROMPT,
       tools: TOOLS,
       messages,
