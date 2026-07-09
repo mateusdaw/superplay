@@ -1,0 +1,21 @@
+{
+  "name": "Superplay Brasil",
+  "short_name": "Superplay",
+  "description": "Área do cliente Superplay Brasil",
+  "start_url": "/login.html",
+  "display": "standalone",
+  "background_color": "#060606",
+  "theme_color": "#ff1f1f",
+  "icons": [
+    {
+      "src": "images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
