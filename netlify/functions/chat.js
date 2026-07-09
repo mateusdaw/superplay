@@ -541,7 +541,10 @@ async function criarTesteNoQPanel({ nome, whatsapp, email, dispositivo }) {
       const checkData = await checkResp.json();
       console.log('🔎 Verificação de telefone existente:', JSON.stringify(checkData));
 
-      if (checkData.ok) {
+      // Só considera "já existe" se a linha tiver os campos essenciais preenchidos.
+      // Linhas gravadas com dados incompletos (usuário/senha/servidor vazios)
+      // não bloqueiam o telefone — deixamos criar um novo acesso.
+      if (checkData.ok && checkData.usuario && checkData.senha && checkData.servidor) {
         return {
           ok: true,
           jaExistia: true,
@@ -609,37 +612,57 @@ async function criarTesteNoQPanel({ nome, whatsapp, email, dispositivo }) {
     return { ok: false, error: 'QPanel retornou erro HTTP ' + resp.status };
   }
 
+  // QPanel pode usar "dns" ou "servidor" dependendo da versão — aceita os dois
   const acesso = {
     ok: true,
-    usuario: data.username,
-    senha: data.password,
-    servidor: data.dns,
+    usuario: data.username || data.usuario,
+    senha: data.password || data.senha,
+    servidor: data.dns || data.servidor,
     validade: data.expirestAtFormatted || '24 horas',
     pacote: data.package,
   };
 
   console.log('✅ Acesso montado:', JSON.stringify(acesso));
 
+  // Valida que os campos essenciais vieram do QPanel antes de tentar salvar.
+  // Se estiverem ausentes, JSON.stringify os omitiria silenciosamente e a
+  // planilha ficaria com uma linha vazia (bloqueando o telefone para sempre).
+  if (!acesso.usuario || !acesso.senha || !acesso.servidor) {
+    console.log('⚠️ QPanel retornou campos incompletos — não salvando linha vazia na planilha. Resposta bruta:', rawText.slice(0, 400));
+    return {
+      ok: false,
+      error: 'Não foi possível gerar o acesso agora (dados incompletos do servidor). Tente novamente em instantes.',
+    };
+  }
+
   // Salva na planilha (Google Sheets) pra alimentar a página login.html
   if (process.env.SHEETS_API_URL && process.env.SHEETS_SECRET_TOKEN) {
     console.log('📤 Salvando na planilha...');
     try {
+      const sheetPayload = JSON.stringify({
+        token: process.env.SHEETS_SECRET_TOKEN,
+        telefone: whatsapp,
+        nome,
+        email,
+        usuario: acesso.usuario,
+        senha: acesso.senha,
+        // envia "servidor" E "dns" para compatibilidade com qualquer versão do Apps Script
+        servidor: acesso.servidor,
+        dns: acesso.servidor,
+        expira: acesso.validade,
+      });
+      console.log('📤 Payload para planilha (sem token):', sheetPayload.replace(/"token":"[^"]*"/, '"token":"[REDACTED]"').slice(0, 400));
+
       const sheetResp = await fetch(process.env.SHEETS_API_URL, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          token: process.env.SHEETS_SECRET_TOKEN,
-          telefone: whatsapp,
-          nome,
-          email,
-          usuario: acesso.usuario,
-          senha: acesso.senha,
-          servidor: acesso.servidor,
-          expira: acesso.validade,
-        }),
+        body: sheetPayload,
       });
       const sheetText = await sheetResp.text();
-      console.log('📥 Resposta da planilha:', sheetText.slice(0, 500));
+      console.log('📥 Resposta da planilha (status', sheetResp.status, '):', sheetText.slice(0, 500));
+      if (!sheetResp.ok || sheetText.includes('"ok":false')) {
+        console.log('⚠️ Planilha retornou erro — o acesso foi criado mas pode não ter sido salvo.');
+      }
     } catch (e) {
       // Não bloqueia o fluxo do cliente se a planilha falhar — só loga.
       console.log('💥 Falha ao salvar na planilha:', e.message);
