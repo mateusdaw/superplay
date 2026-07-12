@@ -46,7 +46,7 @@ export function Sparkline({
   className,
   color = "#22D3EE",
   height = 54,
-  ariaLabel = "Tendencia do indicador",
+  ariaLabel = "Tendência do indicador",
   currencyTooltip = false,
 }: SparklineProps) {
   const gradientId = React.useId().replace(/:/g, "");

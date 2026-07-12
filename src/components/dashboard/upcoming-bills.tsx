@@ -23,7 +23,7 @@ interface UpcomingBillsProps {
 export function UpcomingBills({
   bills,
   className,
-  title = "Proximas contas",
+  title = "Próximas contas",
   description = "Linha do tempo dos compromissos financeiros.",
   onMarkAsPaid,
 }: UpcomingBillsProps) {

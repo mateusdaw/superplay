@@ -1,258 +1,302 @@
 "use client";
 
+import { useMemo } from "react";
 import {
-  ArrowDownRight,
-  ArrowUpRight,
-  BadgeDollarSign,
-  CreditCard,
-  Target,
+  CalendarClock,
+  Landmark,
+  PiggyBank,
+  Scale,
+  TrendingDown,
+  TrendingUp,
   Wallet,
 } from "lucide-react";
-import type { ComponentType } from "react";
-import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { CashFlowChart } from "@/components/charts/cash-flow-chart";
+import { ExpenseDonut } from "@/components/charts/expense-donut";
+import { DebtCard } from "@/components/dashboard/debt-card";
+import { FixedExpensesProgress } from "@/components/dashboard/fixed-expenses-progress";
+import { RecentTransactions } from "@/components/dashboard/recent-transactions";
+import { SummaryCard } from "@/components/dashboard/summary-card";
+import { UpcomingBills } from "@/components/dashboard/upcoming-bills";
+import { GlobeBackground } from "@/components/globe/globe-background";
+import { useFinance } from "@/contexts/finance-context";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import {
+  availableUntilMonthEnd,
+  cashFlowSeries,
   expensesByCategory,
-  savingsRate,
+  fixedExpensesSummary,
+  monthComparison,
+  netWorth,
+  previousMonthTotals,
   sumByType,
   totalBalance,
   totalDebtBalance,
+  totalSaved,
 } from "@/lib/calculations";
-import { formatCurrency, formatPercent } from "@/lib/money";
-import { formatDate } from "@/lib/date";
-import { useFinance } from "@/contexts/finance-context";
+import {
+  computeStatusFromDates,
+  daysUntil,
+  formatMonthYear,
+  getMonthRange,
+  toISODate,
+  nowInSaoPaulo,
+} from "@/lib/date";
+import { formatCurrency } from "@/lib/money";
+import type { FinancialEvent } from "@/types/database";
 
 export default function DashboardOverviewPage() {
   const {
     accounts,
     categories,
-    creditCards,
     debts,
     goals,
+    recurringExpenses,
     selectedMonth,
+    subscriptions,
     transactions,
+    updateTransaction,
+    creditCards,
   } = useFinance();
 
   const income = sumByType(transactions, "income", selectedMonth);
   const expenses = sumByType(transactions, "expense", selectedMonth);
+  const prev = previousMonthTotals(transactions, selectedMonth);
+  const incomeCmp = monthComparison(income, prev.income);
+  const expenseCmp = monthComparison(expenses, prev.expense);
   const balance = totalBalance(accounts);
   const debtsTotal = totalDebtBalance(debts);
-  const rate = savingsRate(income, expenses);
-  const topCategories = expensesByCategory(transactions, categories, selectedMonth).slice(
-    0,
-    5
-  );
-  const latestTransactions = [...transactions]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 6);
-  const creditLimit = creditCards.reduce(
-    (sum, card) => sum + card.credit_limit_cents,
-    0
-  );
-  const availableCredit = creditCards.reduce(
-    (sum, card) => sum + card.available_limit_cents,
-    0
-  );
-  const goalSaved = goals.reduce((sum, goal) => sum + goal.current_amount_cents, 0);
-  const goalTarget = goals.reduce((sum, goal) => sum + goal.target_amount_cents, 0);
+  const saved = totalSaved(goals);
+  const worth = netWorth(accounts, debts, goals);
+  const fixed = fixedExpensesSummary(recurringExpenses, transactions, selectedMonth, income);
+  const available = availableUntilMonthEnd(accounts, income, expenses, fixed.pending);
+
+  const range = getMonthRange(selectedMonth);
+  const upcomingCount = transactions.filter(
+    (t) =>
+      t.type === "expense" &&
+      t.status !== "paid" &&
+      t.due_date &&
+      t.due_date >= range.start &&
+      t.due_date <= range.end
+  ).length;
+
+  const categoryData = expensesByCategory(transactions, categories, selectedMonth);
+  const flowData = cashFlowSeries(transactions, 120);
+
+  const sparkIncome = flowData.slice(-12).map((d) => ({ value: d.income }));
+  const sparkExpense = flowData.slice(-12).map((d) => ({ value: d.expense }));
+  const sparkBalance = flowData.slice(-12).map((d) => ({ value: d.balance }));
+
+  const upcomingBills = useMemo(() => buildUpcomingBills({
+    transactions,
+    subscriptions,
+    accounts,
+  }), [accounts, subscriptions, transactions]);
 
   return (
-    <div className="grid gap-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Saldo em contas"
-          value={formatCurrency(balance)}
-          description="Disponível nas contas ativas"
-          icon={Wallet}
-        />
-        <MetricCard
-          title="Receitas do mês"
-          value={formatCurrency(income)}
-          description="Entradas confirmadas e previstas"
-          icon={ArrowUpRight}
-          tone="success"
-        />
-        <MetricCard
-          title="Despesas do mês"
-          value={formatCurrency(expenses)}
-          description={`Economia estimada: ${formatPercent(rate)}`}
-          icon={ArrowDownRight}
-          tone="danger"
-        />
-        <MetricCard
-          title="Dívidas em aberto"
-          value={formatCurrency(debtsTotal)}
-          description="Saldo de dívidas ativas"
-          icon={BadgeDollarSign}
-          tone="warning"
-        />
-      </section>
+    <div className="relative space-y-8">
+      <section className="relative overflow-hidden rounded-[28px] border border-[var(--card-border)] bg-[rgba(8,13,36,0.55)] p-6 sm:p-8">
+        <GlobeBackground className="pointer-events-none absolute -right-16 top-[-20%] h-[140%] w-[70%] opacity-60 sm:opacity-80" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[rgba(5,8,22,0.92)] via-[rgba(5,8,22,0.72)] to-transparent" />
 
-      <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <CardTitle>Panorama financeiro</CardTitle>
-                <CardDescription>
-                  Visão rápida de cartões, metas e concentração de gastos.
-                </CardDescription>
-              </div>
-              <Badge variant="cyan">Demo premium</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-6 lg:grid-cols-2">
-            <ProgressBlock
-              icon={CreditCard}
-              label="Limite de cartões disponível"
-              value={availableCredit}
-              total={creditLimit}
-            />
-            <ProgressBlock
-              icon={Target}
-              label="Progresso das metas"
-              value={goalSaved}
-              total={goalTarget}
-            />
-            <div className="lg:col-span-2">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-                Maiores categorias de gasto
-              </h3>
-              <div className="grid gap-3">
-                {topCategories.map((category) => (
-                  <div key={category.id} className="grid gap-2">
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="flex items-center gap-2 font-bold text-white">
-                        <span
-                          className="size-2.5 rounded-full"
-                          style={{ backgroundColor: category.color }}
-                        />
-                        {category.name}
-                      </span>
-                      <span className="font-semibold text-[var(--muted)]">
-                        {formatCurrency(category.value)}
-                      </span>
-                    </div>
-                    <Progress
-                      value={expenses > 0 ? (category.value / expenses) * 100 : 0}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Últimas transações</CardTitle>
-            <CardDescription>Movimentos recentes da sua carteira.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {latestTransactions.map((transaction) => (
-              <div
-                key={transaction.id}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--card-border)] bg-white/[0.03] p-3"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-white">
-                    {transaction.description}
-                  </p>
-                  <p className="text-xs font-semibold text-[var(--muted)]">
-                    {formatDate(transaction.date)}
-                  </p>
-                </div>
-                <span
-                  className={
-                    transaction.type === "income"
-                      ? "font-black text-[#a8f7d8]"
-                      : "font-black text-[#ffc2ca]"
-                  }
-                >
-                  {transaction.type === "income" ? "+" : "-"}
-                  {formatCurrency(transaction.amount_cents)}
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </section>
-    </div>
-  );
-}
-
-function MetricCard({
-  title,
-  value,
-  description,
-  icon: Icon,
-  tone = "primary",
-}: {
-  title: string;
-  value: string;
-  description: string;
-  icon: ComponentType<{ className?: string }>;
-  tone?: "primary" | "success" | "danger" | "warning";
-}) {
-  const toneClass = {
-    primary: "text-[#8bbcff] bg-[rgba(20,115,255,0.16)]",
-    success: "text-[#a8f7d8] bg-[rgba(20,217,144,0.16)]",
-    danger: "text-[#ffc2ca] bg-[rgba(255,90,111,0.16)]",
-    warning: "text-[#fde3a3] bg-[rgba(245,158,11,0.16)]",
-  }[tone];
-
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-        <CardDescription>{title}</CardDescription>
-        <span className={`rounded-2xl p-3 ${toneClass}`}>
-          <Icon className="size-5" />
-        </span>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-black tracking-[-0.04em] text-white">{value}</p>
-        <p className="mt-2 text-sm font-semibold text-[var(--muted)]">
-          {description}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ProgressBlock({
-  icon: Icon,
-  label,
-  value,
-  total,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  label: string;
-  value: number;
-  total: number;
-}) {
-  const percentage = total > 0 ? Math.min(100, (value / total) * 100) : 0;
-
-  return (
-    <div className="rounded-3xl border border-[var(--card-border)] bg-white/[0.03] p-5">
-      <div className="mb-4 flex items-center gap-3">
-        <span className="rounded-2xl bg-[rgba(20,115,255,0.16)] p-3 text-[#8bbcff]">
-          <Icon className="size-5" />
-        </span>
-        <div>
-          <p className="text-sm font-bold text-white">{label}</p>
-          <p className="text-xs font-semibold text-[var(--muted)]">
-            {formatCurrency(value)} de {formatCurrency(total)}
+        <div className="relative z-10 max-w-2xl space-y-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--cyan)]">
+            Visão geral · {formatMonthYear(`${selectedMonth}-01`)}
+          </p>
+          <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+            Seu controle financeiro em um só lugar
+          </h1>
+          <p className="max-w-xl text-base text-[var(--muted)]">
+            Acompanhe saldo, fluxo de caixa, dívidas e próximos vencimentos com uma
+            interface premium pensada para o dia a dia no Brasil.
           </p>
         </div>
-      </div>
-      <Progress value={percentage} />
+
+        <div className="relative z-10 mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard
+            icon={Wallet}
+            title="Saldo total"
+            value={formatCurrency(balance)}
+            percentChange={incomeCmp.change}
+            sparklineData={sparkBalance}
+            sparklineColor="#1473FF"
+          />
+          <SummaryCard
+            icon={TrendingUp}
+            title="Receitas do mês"
+            value={formatCurrency(income)}
+            percentChange={incomeCmp.change}
+            positiveIsGood
+            sparklineData={sparkIncome}
+            sparklineColor="#14D990"
+          />
+          <SummaryCard
+            icon={TrendingDown}
+            title="Gastos do mês"
+            value={formatCurrency(expenses)}
+            percentChange={expenseCmp.change}
+            positiveIsGood={false}
+            sparklineData={sparkExpense}
+            sparklineColor="#FF5A6F"
+          />
+          <SummaryCard
+            icon={Landmark}
+            title="Dívidas pendentes"
+            value={formatCurrency(debtsTotal)}
+            percentChange={monthComparison(debtsTotal, debtsTotal).change}
+            positiveIsGood={false}
+          />
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          icon={CalendarClock}
+          title="Próximos vencimentos"
+          value={String(upcomingCount)}
+          previousLabel="neste mês"
+        />
+        <SummaryCard
+          icon={Wallet}
+          title="Disponível até o fim do mês"
+          value={formatCurrency(available)}
+          positiveIsGood={available >= 0}
+        />
+        <SummaryCard
+          icon={PiggyBank}
+          title="Total investido / poupado"
+          value={formatCurrency(saved)}
+          sparklineColor="#22D3EE"
+        />
+        <SummaryCard
+          icon={Scale}
+          title="Patrimônio líquido"
+          value={formatCurrency(worth)}
+          positiveIsGood={worth >= 0}
+          sparklineColor="#1473FF"
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
+        <CashFlowChart
+          data={flowData.map((d) => ({
+            date: d.date,
+            income: d.income,
+            expense: d.expense,
+            balance: d.balance,
+          }))}
+          valueUnit="reais"
+          title="Fluxo de caixa"
+          description="Receitas, despesas e saldo acumulado"
+          defaultPeriod="30d"
+        />
+        <ExpenseDonut
+          data={categoryData.map((c) => ({
+            id: c.id,
+            name: c.name,
+            valueCents: c.value,
+            color: c.color,
+          }))}
+          valueUnit="cents"
+          title="Distribuição de gastos"
+          description="Por categoria no mês selecionado"
+        />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <FixedExpensesProgress
+          incomeCents={income}
+          fixedExpensesCents={fixed.total}
+          paidCents={fixed.paid}
+          pendingCents={fixed.pending}
+          count={fixed.count}
+        />
+        <UpcomingBills
+          bills={upcomingBills}
+          onMarkAsPaid={(bill) => {
+            if (bill.type === "bill" || bill.type === "debt_installment") {
+              updateTransaction(bill.source_id, {
+                status: "paid",
+                payment_date: toISODate(nowInSaoPaulo()),
+              });
+              toast.success("Marcado como pago");
+            } else {
+              toast.message("Pagamento registrado na origem correspondente");
+            }
+          }}
+        />
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-bold text-white">Dívidas</h2>
+          <p className="text-sm text-[var(--muted)]">
+            Acompanhe saldos, parcelas e status de pagamento.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {debts.map((debt) => (
+            <DebtCard key={debt.id} debt={debt} />
+          ))}
+        </div>
+      </section>
+
+      <RecentTransactions
+        transactions={transactions}
+        categories={categories}
+        accounts={accounts}
+        creditCards={creditCards}
+      />
     </div>
   );
+}
+
+function buildUpcomingBills({
+  transactions,
+  subscriptions,
+  accounts,
+}: {
+  transactions: ReturnType<typeof useFinance>["transactions"];
+  subscriptions: ReturnType<typeof useFinance>["subscriptions"];
+  accounts: ReturnType<typeof useFinance>["accounts"];
+}): FinancialEvent[] {
+  const today = toISODate(nowInSaoPaulo());
+  const accountLabel = (id: string | null) =>
+    accounts.find((a) => a.id === id)?.name;
+
+  const fromTx: FinancialEvent[] = transactions
+    .filter((t) => t.type === "expense" && t.status !== "paid" && t.due_date)
+    .map((t) => ({
+      id: `tx-${t.id}`,
+      type: "bill" as const,
+      title: t.description,
+      amount_cents: t.amount_cents,
+      date: t.due_date as string,
+      status: computeStatusFromDates(t.status, t.due_date, t.payment_date),
+      category: undefined,
+      account_name: accountLabel(t.account_id),
+      source_id: t.id,
+    }));
+
+  const fromSubs: FinancialEvent[] = subscriptions
+    .filter((s) => s.is_active)
+    .map((s) => ({
+      id: `sub-${s.id}`,
+      type: "subscription" as const,
+      title: s.name,
+      amount_cents: s.amount_cents,
+      date: s.next_billing_date,
+      status: computeStatusFromDates(
+        daysUntil(s.next_billing_date) < 0 ? "overdue" : "scheduled",
+        s.next_billing_date,
+        null
+      ),
+      account_name: accountLabel(s.account_id),
+      source_id: s.id,
+    }));
+
+  return [...fromTx, ...fromSubs]
+    .filter((b) => b.date >= today || b.status === "overdue")
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 8);
 }

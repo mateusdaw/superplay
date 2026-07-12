@@ -20,7 +20,7 @@ export interface StatusMeta {
 export const transactionStatusMeta: Record<TransactionStatus, StatusMeta> = {
   paid: {
     label: "Pago",
-    description: "Transacao quitada e conciliada.",
+    description: "Transação quitada e conciliada.",
     tone: "success",
     className:
       "border-[rgba(20,217,144,0.42)] bg-[rgba(20,217,144,0.14)] text-[#a8f7d8]",
@@ -29,7 +29,7 @@ export const transactionStatusMeta: Record<TransactionStatus, StatusMeta> = {
   },
   pending: {
     label: "Pendente",
-    description: "Aguardando pagamento ou conciliacao.",
+    description: "Aguardando pagamento ou conciliação.",
     tone: "warning",
     className:
       "border-[rgba(245,158,11,0.42)] bg-[rgba(245,158,11,0.14)] text-[#fde3a3]",

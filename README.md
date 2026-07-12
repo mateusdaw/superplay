@@ -12,14 +12,16 @@ Supabase, mas também inclui schema SQL com RLS para uso em produção.
 
 ## Stack
 
-- Next.js App Router
-- React
-- TypeScript
-- Tailwind CSS
-- Radix UI
+- Next.js App Router + TypeScript
+- Tailwind CSS + Radix UI (shadcn-style)
+- Framer Motion
 - Recharts
-- Supabase
-- date-fns / date-fns-tz
+- React Three Fiber / Three.js / Drei (globo digital)
+- React Hook Form + Zod
+- Supabase (Auth, PostgreSQL, RLS)
+- date-fns / date-fns-tz (`America/Sao_Paulo`)
+- Lucide React
+- cmdk (command palette) + Sonner (toasts)
 
 ## Funcionalidades
 

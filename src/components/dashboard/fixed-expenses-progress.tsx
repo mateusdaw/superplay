@@ -67,7 +67,7 @@ export function FixedExpensesProgress({
 
         <div>
           <div className="mb-2 flex items-center justify-between text-xs font-semibold text-[var(--muted)]">
-            <span>Fixos pagos no mes</span>
+            <span>Fixos pagos no mês</span>
             <span>{formatPercent(Math.min(paidShare, 1))}</span>
           </div>
           <Progress value={Math.min(100, Math.round(paidShare * 100))} />

@@ -59,7 +59,7 @@ export function ExpenseDonut({
   data,
   className,
   title = "Despesas por categoria",
-  description = "Distribuicao das despesas do periodo em reais.",
+  description = "Distribuição das despesas do período em reais.",
   valueUnit = "cents",
 }: ExpenseDonutProps) {
   const titleId = React.useId();

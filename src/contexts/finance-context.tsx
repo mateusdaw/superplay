@@ -113,7 +113,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     () => ({
       ...state,
       cards: state.creditCards,
-      profileName: "João",
+      profileName: state.profile.full_name.split(" ")[0] || "João",
       selectedMonth,
       setSelectedMonth,
       loading,

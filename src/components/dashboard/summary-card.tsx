@@ -25,7 +25,7 @@ export function SummaryCard({
   title,
   value,
   percentChange,
-  previousLabel = "vs. mes anterior",
+  previousLabel = "vs. mês anterior",
   positiveIsGood = true,
   sparklineData,
   sparklineColor = "#22D3EE",
@@ -75,7 +75,7 @@ export function SummaryCard({
             color={sparklineColor}
             className="max-w-[120px]"
             height={46}
-            ariaLabel={`Tendencia de ${title}`}
+            ariaLabel={`Tendência de ${title}`}
           />
         ) : null}
       </div>
